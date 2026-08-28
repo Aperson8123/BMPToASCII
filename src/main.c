@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdint.h>
 #include<stdlib.h>
+#include<string.h>
 
 #pragma pack(push, 1)
 typedef struct {
@@ -41,6 +42,12 @@ int main(void) {
     }
     
     BMPHeader* fileHeader = malloc(sizeof(BMPHeader));
+
+    if (fileHeader == NULL) {
+        fprintf(stderr, "File header memory allocation failed");
+        exit(EXIT_FAILURE);
+    }
+
     size_t fileHeaderElements = fread(fileHeader, sizeof(BMPHeader), 1, BMPfile);
 
     if (fileHeaderElements != 1) {
@@ -52,16 +59,44 @@ int main(void) {
         printf("Filetype not recognized as BMP\n");
     }
     
-    pixel* pbuffer = malloc(sizeof(fileHeader->imageSize));
-    size_t pixelCount = fread(pbuffer, sizeof(pixel), fileHeader->imageSize/sizeof(pixel), BMPfile);
+    uint32_t imageSize = fileHeader->imageSize;
+    unsigned char* imgBuffer = malloc(imageSize);
 
-    size_t pwidth = fileHeader->pwidth;
-    size_t rowPaddingSize = (pwidth % 4)*fileHeader->height;
-    pixelCount -= rowPaddingSize/sizeof(pixel);
+    if (imgBuffer == NULL) {
+        fprintf(stderr, "Image buffer memory allocation failed");
+        exit(EXIT_FAILURE);
+    }
+    
+    size_t imgBufferElements = fread(imgBuffer, sizeof(unsigned char), imageSize, BMPfile);
 
-    printf("pixelCount: %lld\nrowPadding: %lld\n", pixelCount, rowPaddingSize);
+    if (imgBufferElements != imageSize) {
+        fprintf(stderr, "Error when populating image buffer");
+        exit(EXIT_FAILURE);
+    }
 
-    free(pbuffer);
+    size_t pwidth = fileHeader->width;
+    size_t pheight = fileHeader->height;
+    uint8_t prowPadding = pwidth % 4;
+    size_t rowPaddingSize = (prowPadding) * (pheight);
+
+    pixel* pixelBuffer = malloc(imageSize-rowPaddingSize);
+
+    for (size_t i = 0; i < pheight; i++) {
+        size_t pixelOffset = i * (pwidth);
+        size_t byteOffset = i * pwidth * sizeof(pixel) + i * prowPadding;
+        
+        memcpy(pixelBuffer + pixelOffset, imgBuffer + byteOffset, pwidth*sizeof(pixel));
+    }
+
+    int a = 9;
+    printf("%d, %d, %d\n", pixelBuffer[a].b, pixelBuffer[a].g, pixelBuffer[a].r);
+    // pixelCount -= rowPaddingSize/sizeof(pixel);
+    // printf("pixelCount: %lld\nrowPadding: %lld\n", pixelCount, rowPaddingSize);
+    // int a = 2;
+    // printf("%d, %d, %d", pbuffer[a].b, pbuffer[a].g, pbuffer[a].r);
+
+    free(pixelBuffer);
+    free(imgBuffer);
     free(fileHeader);
     fclose(BMPfile);
     return 0;
