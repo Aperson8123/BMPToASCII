@@ -1,103 +1,83 @@
+// #define DNCURSES_DLL
+
 #include<stdio.h>
 #include<stdint.h>
 #include<stdlib.h>
 #include<string.h>
+#include<ncurses/ncurses.h>
+#include "bmp.h"
 
-#pragma pack(push, 1)
-typedef struct {
-    uint16_t type;
-    uint32_t size;
-    uint16_t reserved1;
-    uint16_t reserved2;
-    uint32_t offset;
-    uint32_t headerSize;
-    uint32_t width;
-    uint32_t height;
-    uint16_t colorPanes;
-    uint16_t colorDepth;
-    uint32_t compressionMethod;
-    uint32_t imageSize;
-    uint32_t pwidth;;
-    uint32_t pheight; 
-    uint32_t colorPaletteCount;
-    uint32_t importantColors;
-} BMPHeader;
+char brightnessToASCII(uint8_t brightness);
 
-typedef struct {
-    uint8_t b;
-    uint8_t g;
-    uint8_t r;
-} pixel;
-#pragma pack(pop)
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        printf("Usage %s FILEPATH", argv[0]);
+        exit(EXIT_FAILURE);
+    }
 
-//temporary
-#define PATH "C:\\Cstuff\\data\\ColorTest.bmp"
-
-int main(void) {
-    FILE* BMPfile = fopen(PATH, "rb");
-
+    char* filePath = argv[1];
+    FILE* BMPfile = fopen(filePath, "rb");
+    
     if (BMPfile == NULL) {
         fprintf(stderr, "File could not be opened");
         exit(EXIT_FAILURE);
     }
-    
-    BMPHeader* fileHeader = malloc(sizeof(BMPHeader));
 
-    if (fileHeader == NULL) {
-        fprintf(stderr, "File header memory allocation failed");
-        exit(EXIT_FAILURE);
+    pixel* pixelBuffer;
+    BMPHeader* fileHeader = newHeader(BMPfile);
+
+    uint16_t imgWidth = fileHeader->width;
+    uint16_t imgHeight = fileHeader->height;
+
+    fillPixelBuffer(&pixelBuffer, fileHeader, BMPfile);
+
+    uint16_t windowWidth;
+    uint16_t windowHeight;
+
+    initscr();
+    noecho();
+    erase();
+    getmaxyx(stdscr, windowHeight, windowWidth);
+
+    uint16_t displayedWidth = imgWidth;
+    uint16_t displayedHeight = imgHeight;
+
+    //TODO cant display anything larger than the terminal window
+    if (windowHeight < imgHeight || windowWidth < imgWidth) {
+        displayedWidth = windowWidth/imgWidth;
+        displayedHeight = windowHeight/imgHeight;
     }
 
-    size_t fileHeaderElements = fread(fileHeader, sizeof(BMPHeader), 1, BMPfile);
-
-    if (fileHeaderElements != 1) {
-        fprintf(stderr, "Error reading the file header");
-        exit(EXIT_FAILURE);
+    for (uint16_t y = 0; y < displayedHeight; y++) {
+        for (uint16_t x = 0; x < displayedWidth; x++) {
+            pixel p = getPixel(pixelBuffer, imgWidth, y+1, x+1);
+            uint8_t brightness = getBrightness(p);
+            char c = brightnessToASCII(brightness);
+            move(displayedHeight - y, x); //ncurses coords starts top left but bmp starts bottom left
+            printw("%c", c);
+        }
     }
 
-    if (fileHeader->type != 0x4D42) {
-        printf("Filetype not recognized as BMP\n");
-    }
-    
-    uint32_t imageSize = fileHeader->imageSize;
-    unsigned char* imgBuffer = malloc(imageSize);
+    refresh();
 
-    if (imgBuffer == NULL) {
-        fprintf(stderr, "Image buffer memory allocation failed");
-        exit(EXIT_FAILURE);
-    }
-    
-    size_t imgBufferElements = fread(imgBuffer, sizeof(unsigned char), imageSize, BMPfile);
-
-    if (imgBufferElements != imageSize) {
-        fprintf(stderr, "Error when populating image buffer");
-        exit(EXIT_FAILURE);
-    }
-
-    size_t pwidth = fileHeader->width;
-    size_t pheight = fileHeader->height;
-    uint8_t prowPadding = pwidth % 4;
-    size_t rowPaddingSize = (prowPadding) * (pheight);
-
-    pixel* pixelBuffer = malloc(imageSize-rowPaddingSize);
-
-    for (size_t i = 0; i < pheight; i++) {
-        size_t pixelOffset = i * (pwidth);
-        size_t byteOffset = i * pwidth * sizeof(pixel) + i * prowPadding;
-        
-        memcpy(pixelBuffer + pixelOffset, imgBuffer + byteOffset, pwidth*sizeof(pixel));
-    }
-
-    int a = 9;
-    printf("%d, %d, %d\n", pixelBuffer[a].b, pixelBuffer[a].g, pixelBuffer[a].r);
-    // pixelCount -= rowPaddingSize/sizeof(pixel);
-    // printf("pixelCount: %lld\nrowPadding: %lld\n", pixelCount, rowPaddingSize);
-    // int a = 2;
-    // printf("%d, %d, %d", pbuffer[a].b, pbuffer[a].g, pbuffer[a].r);
-
+    getch();
+    endwin();
     free(pixelBuffer);
-    free(imgBuffer);
     free(fileHeader);
     fclose(BMPfile);
     return 0;
+}
+
+char brightnessToASCII(uint8_t brightness) {
+    static const char ASCII[] = {'#','0','/','~',' '};
+    
+    uint8_t max = sizeof(ASCII);
+    uint8_t resultIndex = max-1;
+    
+    for (uint8_t i = 0; i < max; i++) {
+        if (brightness > (255/max)*(i+1)) {
+            resultIndex--;
+        }
+    }
+    return ASCII[resultIndex];
 }

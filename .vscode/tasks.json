@@ -9,7 +9,9 @@
                 "-g",
                 "${file}",
                 "-o",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+                "${fileDirname}\\${fileBasenameNoExtension}.exe",
+                "bmp.c",
+                "-lncursesw"
             ],
             "options": {
                 "cwd": "${fileDirname}"
