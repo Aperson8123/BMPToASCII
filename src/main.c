@@ -69,10 +69,10 @@ int main(int argc, char* argv[]) {
 }
 
 char brightnessToASCII(uint8_t brightness) {
-    static const char ASCII[] = {'#','0','/','~',' '};
+    static const char ASCII[] = {'@', '#', '0', 'O', 'X', '/', '+' ,'~' ,'.' , ' '};
     
-    uint8_t max = sizeof(ASCII);
-    uint8_t resultIndex = max-1;
+    uint16_t max = sizeof(ASCII);
+    uint16_t resultIndex = max;
     
     for (uint8_t i = 0; i < max; i++) {
         if (brightness > (255/max)*(i+1)) {
