@@ -3,11 +3,14 @@
 #include<stdio.h>
 #include<stdint.h>
 #include<stdlib.h>
-#include<string.h>
+#include<math.h>
 #include<ncurses/ncurses.h>
 #include "bmp.h"
 
 char brightnessToASCII(uint8_t brightness);
+void resize(pixel* initBuffer, size_t initWidth, size_t initHeight, pixel** outBuffer, size_t outWidth, size_t outHeight);
+void printImg(pixel* pbuffer, size_t height, size_t width);
+static inline int clampInt(int val, int min, int max);
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -17,55 +20,88 @@ int main(int argc, char* argv[]) {
 
     char* filePath = argv[1];
     FILE* BMPfile = fopen(filePath, "rb");
-    
+
     if (BMPfile == NULL) {
         fprintf(stderr, "File could not be opened");
         exit(EXIT_FAILURE);
     }
 
-    pixel* pixelBuffer;
+    pixel* imgBuffer;
     BMPHeader* fileHeader = newHeader(BMPfile);
 
     uint16_t imgWidth = fileHeader->width;
     uint16_t imgHeight = fileHeader->height;
 
-    fillPixelBuffer(&pixelBuffer, fileHeader, BMPfile);
+    fillPixelBuffer(&imgBuffer, fileHeader, BMPfile);
 
-    uint16_t windowWidth;
-    uint16_t windowHeight;
+    uint16_t terminalWidth;
+    uint16_t terminalHeight;
 
     initscr();
     noecho();
     erase();
-    getmaxyx(stdscr, windowHeight, windowWidth);
+    getmaxyx(stdscr, terminalHeight, terminalWidth);
 
-    uint16_t displayedWidth = imgWidth;
-    uint16_t displayedHeight = imgHeight;
+    pixel* terminalBuffer = malloc(terminalWidth*terminalHeight*sizeof(pixel));
+    
+    size_t devar = terminalWidth*terminalHeight*sizeof(pixel);
+    size_t devar2 = imgWidth*imgHeight;
+    size_t devar3 = sizeof(pixel);
+    size_t devar4 = sizeof(imgBuffer);
 
-    //TODO cant display anything larger than the terminal window
-    if (windowHeight < imgHeight || windowWidth < imgWidth) {
-        displayedWidth = windowWidth/imgWidth;
-        displayedHeight = windowHeight/imgHeight;
+    if (terminalBuffer == NULL) {
+        fprintf(stderr, "Terminal buffer allocation failed");
+        exit(EXIT_FAILURE);
     }
 
-    for (uint16_t y = 0; y < displayedHeight; y++) {
-        for (uint16_t x = 0; x < displayedWidth; x++) {
-            pixel p = getPixel(pixelBuffer, imgWidth, y+1, x+1);
-            uint8_t brightness = getBrightness(p);
-            char c = brightnessToASCII(brightness);
-            move(displayedHeight - y, x); //ncurses coords starts top left but bmp starts bottom left
-            printw("%c", c);
-        }
+    if (terminalHeight >= imgHeight && terminalWidth >= imgWidth) {
+        printImg(imgBuffer, imgHeight, imgWidth);
+    } else {
+        resize(imgBuffer, imgWidth, imgHeight, &terminalBuffer, terminalWidth, terminalHeight);
+        printImg(terminalBuffer, terminalHeight, terminalWidth);
     }
 
     refresh();
 
     getch();
     endwin();
-    free(pixelBuffer);
+    free(imgBuffer);
+    free(terminalBuffer);
     free(fileHeader);
     fclose(BMPfile);
     return 0;
+}
+
+void resize(pixel* initBuffer, size_t initWidth, size_t initHeight, pixel** outBuffer, size_t outWidth, size_t outHeight) {
+    float xRatio = (float)initWidth/outWidth;
+    float yRatio = (float)initHeight/outHeight;
+
+    for (size_t outY = 0; outY < outHeight; outY++) {
+
+        float initY = (outY + 0.5) * yRatio - 0.5;
+        int y = clampInt((int)roundf(initY), 0, initHeight - 1);
+        
+        for (size_t outX = 0; outX < outWidth; outX++) {
+            float initX = (outX + 0.5) * xRatio - 0.5;
+            int x = clampInt((int)roundf(initX), 0, initWidth - 1);
+
+            int outDex = outY * outWidth + outX;
+            int initDex = y * (initWidth) + x;
+            (*outBuffer)[outDex] = initBuffer[initDex];
+        }
+    }
+}
+
+void printImg(pixel* pbuffer, size_t height, size_t width) {
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            pixel p = getPixel(pbuffer, width, y, x);
+            uint8_t brightness = getBrightness(p);
+            char c = brightnessToASCII(brightness);
+            move(height - 1 - y, x); //ncurses coords starts top left but bmp starts bottom left so flipping the y is necessary
+            printw("%c", c);
+        }
+    }
 }
 
 char brightnessToASCII(uint8_t brightness) {
@@ -80,4 +116,10 @@ char brightnessToASCII(uint8_t brightness) {
         }
     }
     return ASCII[resultIndex];
+}
+
+static inline int clampInt(int val, int min, int max) {
+    if (val < min) return min;
+    if (val > max) return max;
+    return val;
 }

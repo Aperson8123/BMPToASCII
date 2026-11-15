@@ -27,6 +27,7 @@ BMPHeader* newHeader(FILE* file) {
     return header;
 }
 
+// TODO I think using pixel instead of unsigned char is prolly better
 void fillPixelBuffer(pixel** pbuffer, BMPHeader* header, FILE* file) {
     uint32_t imageSize = header->imageSize;
     unsigned char* tempImageBuffer = malloc(imageSize);
@@ -66,7 +67,7 @@ void fillPixelBuffer(pixel** pbuffer, BMPHeader* header, FILE* file) {
 }
 
 pixel getPixel(pixel* pbuffer, uint16_t width, uint16_t y, uint16_t x) {
-    uint16_t offset = ((y-1)*width + x)-1;
+    uint16_t offset = (y*width + x+1)-1;
     return pbuffer[offset];
 }
 

@@ -20,7 +20,7 @@ typedef struct {
     uint16_t colorDepth;
     uint32_t compressionMethod;
     uint32_t imageSize;
-    uint32_t pwidth;;
+    uint32_t pwidth;
     uint32_t pheight; 
     uint32_t colorPaletteCount;
     uint32_t importantColors;
